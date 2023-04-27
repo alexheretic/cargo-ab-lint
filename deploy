@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -eu
+dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$dir"
+
+cargo +nightly fmt -- --check
+
+cargo build --release
+
+cp "${CARGO_TARGET_DIR:-./target}/release/cargo-ab-lint" ~/bin/cargo-ab-lint
+
+ls -lh ~/bin/cargo-ab-lint

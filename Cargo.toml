@@ -1,0 +1,23 @@
+[package]
+name = "cargo-ab-lint"
+version = "0.1.0"
+edition = "2021"
+description = "CLI with extra lints for rust projects"
+repository = "https://github.com/alexheretic/cargo-ab-lint"
+keywords = ["lints"]
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.70"
+cargo_metadata = "0.15.4"
+cargo_toml = "0.15.2"
+colored = "2.0.0"
+diff = "0.1.13"
+fs-err = "2.9.0"
+toml_edit = "0.19.8"
+
+[profile.release]
+lto = true
+opt-level = "s"
+strip = true
