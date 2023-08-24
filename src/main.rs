@@ -19,7 +19,9 @@ fn main() -> anyhow::Result<()> {
     let mut something_to_fix = false;
 
     for member in meta.workspace_members {
-        let Some(member_path) = member.manifest_path() else { continue };
+        let Some(member_path) = member.manifest_path() else {
+            continue;
+        };
         let relative_member_path = env::current_dir()
             .ok()
             .and_then(|cwd| member_path.strip_prefix(&cwd).ok());
