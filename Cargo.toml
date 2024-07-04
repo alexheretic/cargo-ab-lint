@@ -10,12 +10,12 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.70"
-cargo_metadata = "0.17"
-cargo_toml = "0.15.2"
+cargo_metadata = "0.18.1"
+cargo_toml = "0.20.3"
 colored = "2.0.0"
 diff = "0.1.13"
 fs-err = "2.9.0"
-toml_edit = "0.19.8"
+toml_edit = "0.22.14"
 
 [profile.release]
 lto = true

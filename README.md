@@ -4,6 +4,7 @@ CLI / cargo subcommand with extra lints for rust projects.
 ## Lints
 * Workspace dependencies with redundant `features` already present in root.
 * Workspace dependencies with redundant `default-features` set.
+* Unused workspace dependencies.
 
 ## Usage
 Run it in a cargo project to view lints, if any.

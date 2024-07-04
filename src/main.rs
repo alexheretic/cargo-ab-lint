@@ -6,41 +6,53 @@ use fs_err as fs;
 use std::{env, str::FromStr};
 
 fn main() -> anyhow::Result<()> {
+    if env::args().any(|a| a == "--help" || a == "-h") {
+        eprintln!("Usage: cargo ab-lint [--fix [--dry-run]]");
+        return Ok(());
+    }
+
     let fix = env::args().any(|a| a == "--fix");
     let dry_run = env::args().any(|a| a == "--dry-run");
 
     let meta = cargo_metadata::MetadataCommand::new().exec()?;
 
-    let root_manifest = {
-        let manifest = fs::read(&meta.workspace_root.join("Cargo.toml"))?;
-        Manifest::from_slice(&manifest).with_context(|| format!("{}", meta.workspace_root))?
+    let root_toml = meta.workspace_root.join("Cargo.toml");
+    let (root_manifest, mut root_doc, root_toml_str) = {
+        let toml = fs::read_to_string(&root_toml)?;
+        let manifest =
+            Manifest::from_str(&toml).with_context(|| format!("{}", meta.workspace_root))?;
+        let doc = toml.parse::<toml_edit::DocumentMut>()?;
+        (manifest, doc, toml)
     };
 
     let mut something_to_fix = false;
+    let mut member_manifests = vec![];
+    let cwd = env::current_dir().ok();
+    let cwd = cwd.as_ref();
 
     for member in meta.workspace_members {
         let Some(member_path) = member.manifest_path() else {
             continue;
         };
-        let relative_member_path = env::current_dir()
-            .ok()
-            .and_then(|cwd| member_path.strip_prefix(&cwd).ok());
         eprintln!(
             "==> Checking {}",
-            relative_member_path.unwrap_or(&member_path)
+            cwd.and_then(|cwd| member_path.strip_prefix(cwd).ok())
+                .unwrap_or(&member_path)
         );
 
         let (member_manifest, mut member_doc, toml_str) = {
             let toml = fs::read_to_string(&member_path)?;
             let manifest = Manifest::from_str(&toml).with_context(|| format!("{member_path}"))?;
-            (manifest, toml.parse::<toml_edit::Document>()?, toml)
+            (manifest, toml.parse::<toml_edit::DocumentMut>()?, toml)
         };
         let has_fixes = lint_manifest(&root_manifest, &member_manifest, &mut member_doc);
+        member_manifests.push(member_manifest);
 
         if fix && has_fixes {
             let fixed_toml = member_doc
                 .to_string()
-                .replace("workspace = true}", "workspace = true }");
+                .replace("workspace = true}", "workspace = true }")
+                .replace(" = { workspace = true }", ".workspace = true");
             for diff in diff::lines(&toml_str, &fixed_toml) {
                 match diff {
                     diff::Result::Left(old) => eprintln!("{}{}", "-".red(), old.red()),
@@ -53,6 +65,43 @@ fn main() -> anyhow::Result<()> {
             }
         }
         something_to_fix |= has_fixes;
+    }
+
+    if root_manifest.workspace.is_some() {
+        eprintln!(
+            "==> Checking workspace {}",
+            cwd.and_then(|cwd| root_toml.strip_prefix(cwd).ok())
+                .unwrap_or(&root_toml)
+        );
+    }
+    let unused_ws_deps = unused_workspace_deps(&root_manifest, &member_manifests);
+    if !unused_ws_deps.is_empty() {
+        something_to_fix = true;
+        for dep in &unused_ws_deps {
+            eprintln!(
+                "{}",
+                format!("Unused workspace dependency {}", dep.bold()).yellow()
+            );
+        }
+        if fix {
+            let deps = root_doc["workspace"]["dependencies"]
+                .as_table_like_mut()
+                .unwrap();
+            for dep in unused_ws_deps {
+                deps.remove(dep);
+            }
+            let fixed_toml = root_doc.to_string();
+            for diff in diff::lines(&root_toml_str, &fixed_toml) {
+                match diff {
+                    diff::Result::Left(old) => eprintln!("{}{}", "-".red(), old.red()),
+                    diff::Result::Right(new) => eprintln!("{}{}", "+".green(), new.green()),
+                    _ => {}
+                }
+            }
+            if !dry_run {
+                fs::write(&root_toml, fixed_toml)?;
+            }
+        }
     }
 
     if !fix && something_to_fix {
@@ -69,7 +118,22 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn lint_manifest(root: &Manifest, member: &Manifest, doc: &mut toml_edit::Document) -> bool {
+fn unused_workspace_deps<'a>(root: &'a Manifest, members: &[Manifest]) -> Vec<&'a str> {
+    root.workspace
+        .iter()
+        .flat_map(|w| w.dependencies.keys())
+        .filter(|dep| {
+            !members.iter().any(|m| {
+                m.dependencies.contains_key(*dep)
+                    || m.dev_dependencies.contains_key(*dep)
+                    || m.build_dependencies.contains_key(*dep)
+            })
+        })
+        .map(|dep| dep.as_str())
+        .collect()
+}
+
+fn lint_manifest(root: &Manifest, member: &Manifest, doc: &mut toml_edit::DocumentMut) -> bool {
     let mut has_fixes = false;
 
     for (name, ws_dep) in root.workspace.iter().flat_map(|ws| &ws.dependencies) {
@@ -117,7 +181,7 @@ fn workspace_dependency_with_default_features_set(
     doc_deps: &mut toml_edit::Item,
     item_name: &str,
 ) -> bool {
-    if let Some(table) = doc_deps[dep_name].as_inline_table_mut() {
+    if let Some(table) = doc_deps[dep_name].as_table_like_mut() {
         let fixes = table.remove("default-features").is_some()
             || table.remove("default_features").is_some();
 
@@ -181,7 +245,7 @@ fn dependency_with_redundant_workspace_features(
 
         if feats.is_empty() {
             doc_deps[dep_name]
-                .as_inline_table_mut()
+                .as_table_like_mut()
                 .unwrap()
                 .remove("features");
         }
@@ -195,8 +259,11 @@ trait PackageIdExt {
 }
 impl PackageIdExt for PackageId {
     fn manifest_path(&self) -> Option<Utf8PathBuf> {
-        let fidx = self.repr.find("(path+file://")?;
-        let path = self.repr[fidx + "(path+file://".len()..].trim_end_matches(')');
+        let fidx = self.repr.find("path+file://")?;
+        let mut path = &self.repr[fidx + "path+file://".len()..];
+        if let Some(idx) = path.find('#') {
+            path = &path[..idx];
+        }
         let path = Utf8PathBuf::from_str(path).ok()?;
         Some(path.join("Cargo.toml"))
     }
