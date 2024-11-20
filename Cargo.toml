@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.70"
-cargo_metadata = "0.18.1"
+cargo_metadata = "0.19"
 cargo_toml = "0.20.3"
 colored = "2.0.0"
 diff = "0.1.13"
