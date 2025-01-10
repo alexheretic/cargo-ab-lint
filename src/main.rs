@@ -233,10 +233,7 @@ fn dependency_with_redundant_workspace_features(
         let rm_idx: Vec<_> = feats
             .iter()
             .enumerate()
-            .filter(|(_, v)| {
-                v.as_str()
-                    .map_or(false, |s| redundant_features.contains(&s))
-            })
+            .filter(|(_, v)| v.as_str().is_some_and(|s| redundant_features.contains(&s)))
             .map(|(idx, _)| idx)
             .collect();
         for idx in rm_idx.into_iter().rev() {
