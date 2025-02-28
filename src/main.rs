@@ -1,5 +1,5 @@
 use anyhow::Context;
-use cargo_metadata::{camino::Utf8PathBuf, PackageId};
+use cargo_metadata::{PackageId, camino::Utf8PathBuf};
 use cargo_toml::Manifest;
 use colored::Colorize;
 use fs_err as fs;
