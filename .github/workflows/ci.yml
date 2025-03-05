@@ -13,7 +13,7 @@ jobs:
       RUST_BACKTRACE: 1
     steps:
     - run: rustup update stable
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: cargo test
     # dogfood
     - run: cargo run
@@ -22,5 +22,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - run: rustup update stable
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: cargo fmt -- --check

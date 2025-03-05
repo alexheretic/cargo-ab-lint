@@ -122,13 +122,7 @@ fn unused_workspace_deps<'a>(root: &'a Manifest, members: &[Manifest]) -> Vec<&'
     root.workspace
         .iter()
         .flat_map(|w| w.dependencies.keys())
-        .filter(|dep| {
-            !members.iter().any(|m| {
-                m.dependencies.contains_key(*dep)
-                    || m.dev_dependencies.contains_key(*dep)
-                    || m.build_dependencies.contains_key(*dep)
-            })
-        })
+        .filter(|dep| !members.iter().any(|m| m.depends_on(dep)))
         .map(|dep| dep.as_str())
         .collect()
 }
@@ -263,5 +257,24 @@ impl PackageIdExt for PackageId {
         }
         let path = Utf8PathBuf::from_str(path).ok()?;
         Some(path.join("Cargo.toml"))
+    }
+}
+
+trait DependsOn {
+    fn depends_on(&self, crate_name: &str) -> bool;
+}
+impl DependsOn for Manifest {
+    fn depends_on(&self, dep: &str) -> bool {
+        self.dependencies.contains_key(dep)
+            || self.dev_dependencies.contains_key(dep)
+            || self.build_dependencies.contains_key(dep)
+            || self.target.values().any(|t| t.depends_on(dep))
+    }
+}
+impl DependsOn for cargo_toml::Target {
+    fn depends_on(&self, dep: &str) -> bool {
+        self.dependencies.contains_key(dep)
+            || self.dev_dependencies.contains_key(dep)
+            || self.build_dependencies.contains_key(dep)
     }
 }

@@ -19,10 +19,10 @@ cargo ab-lint --fix
 
 ## Install
 ### Using cargo
-Latest release
+<!-- Latest release
 ```sh
 cargo install cargo-ab-lint
-```
+``` -->
 
 Latest code direct from git
 ```sh
