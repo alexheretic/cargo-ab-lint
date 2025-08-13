@@ -131,38 +131,35 @@ fn lint_manifest(root: &Manifest, member: &Manifest, doc: &mut toml_edit::Docume
     let mut has_fixes = false;
 
     for (name, ws_dep) in root.workspace.iter().flat_map(|ws| &ws.dependencies) {
-        if let Some(cargo_toml::Dependency::Inherited(dep)) = member.dependencies.get(name) {
-            if dep.workspace {
-                let doc_deps = &mut doc["dependencies"];
+        if let Some(cargo_toml::Dependency::Inherited(dep)) = member.dependencies.get(name)
+            && dep.workspace
+        {
+            let doc_deps = &mut doc["dependencies"];
 
-                has_fixes |= dependency_with_redundant_workspace_features(
-                    name,
-                    ws_dep,
-                    dep,
-                    doc_deps,
-                    "dependency",
-                );
-                has_fixes |=
-                    workspace_dependency_with_default_features_set(name, doc_deps, "dependency");
-            }
+            has_fixes |= dependency_with_redundant_workspace_features(
+                name,
+                ws_dep,
+                dep,
+                doc_deps,
+                "dependency",
+            );
+            has_fixes |=
+                workspace_dependency_with_default_features_set(name, doc_deps, "dependency");
         }
-        if let Some(cargo_toml::Dependency::Inherited(dep)) = member.dev_dependencies.get(name) {
-            if dep.workspace {
-                let doc_devdeps = &mut doc["dev-dependencies"];
+        if let Some(cargo_toml::Dependency::Inherited(dep)) = member.dev_dependencies.get(name)
+            && dep.workspace
+        {
+            let doc_devdeps = &mut doc["dev-dependencies"];
 
-                has_fixes |= dependency_with_redundant_workspace_features(
-                    name,
-                    ws_dep,
-                    dep,
-                    doc_devdeps,
-                    "dev-dependency",
-                );
-                has_fixes |= workspace_dependency_with_default_features_set(
-                    name,
-                    doc_devdeps,
-                    "dev-dependency",
-                );
-            }
+            has_fixes |= dependency_with_redundant_workspace_features(
+                name,
+                ws_dep,
+                dep,
+                doc_devdeps,
+                "dev-dependency",
+            );
+            has_fixes |=
+                workspace_dependency_with_default_features_set(name, doc_devdeps, "dev-dependency");
         }
     }
 
